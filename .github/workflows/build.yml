@@ -1,0 +1,58 @@
+name: Build ESP32 WiFi firmware
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: pio run
+
+      - name: Collect flash binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_DIR=".pio/build/esp32dev"
+          mkdir -p flash-bundle
+          cp "$BUILD_DIR/bootloader.bin" flash-bundle/bootloader.bin
+          cp "$BUILD_DIR/partitions.bin" flash-bundle/partitions.bin
+          cp "$BUILD_DIR/firmware.bin" flash-bundle/firmware.bin
+          BOOT_APP0="$(find .pio -type f -name boot_app0.bin -print -quit)"
+          test -n "$BOOT_APP0"
+          cp "$BOOT_APP0" flash-bundle/boot_app0.bin
+          cat > flash-bundle/FLASH-ADDRESSES.txt <<'EOF'
+          ESP32 DevKit V1 / ESP-WROOM-32
+          bootloader.bin   0x1000
+          partitions.bin  0x8000
+          boot_app0.bin   0xE000
+          firmware.bin    0x10000
+          Select chip ESP32 and baud 115200 in the flasher.
+          Do not erase first. Flash only after verifying all four files.
+          EOF
+          cd flash-bundle
+          zip -j ../esp32-wifi-setup-binaries.zip ./*
+
+      - name: Upload firmware bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-wifi-setup-binaries
+          path: esp32-wifi-setup-binaries.zip
+          if-no-files-found: error
