@@ -35,7 +35,7 @@ jobs:
           cp "$BUILD_DIR/bootloader.bin" flash-bundle/bootloader.bin
           cp "$BUILD_DIR/partitions.bin" flash-bundle/partitions.bin
           cp "$BUILD_DIR/firmware.bin" flash-bundle/firmware.bin
-          BOOT_APP0="$(find .pio -type f -name boot_app0.bin -print -quit)"
+          BOOT_APP0="$(find "$HOME/.platformio" -type f -name boot_app0.bin -print -quit)"
           test -n "$BOOT_APP0"
           cp "$BOOT_APP0" flash-bundle/boot_app0.bin
           cat > flash-bundle/FLASH-ADDRESSES.txt <<'EOF'
