@@ -38,19 +38,52 @@ jobs:
           BOOT_APP0="$(find "$HOME/.platformio" -type f -name boot_app0.bin -print -quit)"
           test -n "$BOOT_APP0"
           cp "$BOOT_APP0" flash-bundle/boot_app0.bin
-          PHY_INIT="$(find "$HOME/.platformio" -type f -path '*/tools/sdk/esp32/bin/phy_init_data.bin' -print -quit)"
-          if [ -z "$PHY_INIT" ]; then
-            PHY_INIT="$(find "$HOME/.platformio" -type f -name phy_init_data.bin -print -quit)"
-          fi
-          test -n "$PHY_INIT"
-          cp "$PHY_INIT" flash-bundle/phy_init_data.bin
+
+          # Build the exact ESP-IDF v4.4.7 default ESP32 PHY init partition
+          # from Espressif's official source header (Arduino-ESP32 2.0.17 base).
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/esp_phy/esp32/include/phy_init_data.h \
+            --output /tmp/phy_init_data.h
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          source = Path("/tmp/phy_init_data.h").read_text()
+          match = re.search(r"phy_init_data\s*=\s*\{\s*\{(.*?)\}\s*\};", source, re.S)
+          if not match:
+              raise SystemExit("Could not parse Espressif PHY init data source")
+          values = []
+          for raw in match.group(1).split(","):
+              token = raw.strip()
+              if not token:
+                  continue
+              if token.startswith("LIMIT(") and token.endswith(")"):
+                  args = [x.strip() for x in token[6:-1].split(",")]
+                  if len(args) != 3:
+                      raise SystemExit(f"Unexpected LIMIT expression: {token}")
+                  value, low, high = [int(x, 0) if x.lower().startswith("0x") else int(x) for x in args]
+                  value = max(low, min(value, high))
+              else:
+                  value = int(token, 0)
+              if not 0 <= value <= 255:
+                  raise SystemExit(f"PHY byte out of range: {token}")
+              values.append(value)
+          if len(values) != 128:
+              raise SystemExit(f"Expected 128 PHY bytes, got {len(values)}")
+          payload = b"PHYINIT" + bytes(values) + b"PHYINIT"
+          if len(payload) != 142:
+              raise SystemExit(f"Unexpected PHY image length: {len(payload)}")
+          Path("flash-bundle/phy_init_data.bin").write_bytes(payload)
+          print(f"Created official ESP32 PHY init image: {len(payload)} bytes")
+          PY
+
           cat > flash-bundle/FLASH-ADDRESSES.txt <<'EOF'
           ESP32 DevKit V1 / ESP-WROOM-32
-          bootloader.bin   0x1000
-          partitions.bin  0x8000
-          boot_app0.bin   0xE000
+          bootloader.bin     0x1000
+          partitions.bin    0x8000
+          boot_app0.bin     0xE000
           phy_init_data.bin 0xF000
-          firmware.bin    0x10000
+          firmware.bin      0x10000
           Select chip ESP32 and baud 115200 in the flasher.
           Do not erase first. Flash all five BIN files at the listed offsets.
           EOF
