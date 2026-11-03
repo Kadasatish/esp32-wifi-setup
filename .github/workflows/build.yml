@@ -52,19 +52,17 @@ jobs:
           match = re.search(r"phy_init_data\s*=\s*\{\s*\{(.*?)\}\s*\};", source, re.S)
           if not match:
               raise SystemExit("Could not parse Espressif PHY init data source")
+          body = re.sub(
+              r"LIMIT\(([^,]+),\s*([^,]+),\s*([^)]+)\)",
+              lambda m: str(max(int(m.group(2).strip()), min(int(m.group(1).strip().replace("CONFIG_ESP_PHY_MAX_TX_POWER * 4", "80")), int(m.group(3).strip())))),
+              match.group(1),
+          )
           values = []
-          for raw in match.group(1).split(","):
+          for raw in body.split(","):
               token = raw.strip()
               if not token:
                   continue
-              if token.startswith("LIMIT(") and token.endswith(")"):
-                  args = [x.strip() for x in token[6:-1].split(",")]
-                  if len(args) != 3:
-                      raise SystemExit(f"Unexpected LIMIT expression: {token}")
-                  value, low, high = [int(x, 0) if x.lower().startswith("0x") else int(x) for x in args]
-                  value = max(low, min(value, high))
-              else:
-                  value = int(token, 0)
+              value = int(token, 0)
               if not 0 <= value <= 255:
                   raise SystemExit(f"PHY byte out of range: {token}")
               values.append(value)
