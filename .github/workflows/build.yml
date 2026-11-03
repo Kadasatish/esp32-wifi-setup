@@ -71,7 +71,7 @@ jobs:
           # C zero-initializes the unused tail of params[128].
           values.extend([0] * (128 - len(values)))
           # Match Espressif's char[] magic strings, including C NUL terminators.
-          payload = b"PHYINIT\\x00" + bytes(values) + b"PHYINIT\\x00"
+          payload = b"PHYINIT\x00" + bytes(values) + b"PHYINIT\x00"
           if len(payload) != 144:
               raise SystemExit(f"Unexpected PHY image length: {len(payload)}")
           Path("flash-bundle/phy_init_data.bin").write_bytes(payload)
