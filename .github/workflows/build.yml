@@ -66,10 +66,13 @@ jobs:
               if not 0 <= value <= 255:
                   raise SystemExit(f"PHY byte out of range: {token}")
               values.append(value)
-          if len(values) != 128:
-              raise SystemExit(f"Expected 128 PHY bytes, got {len(values)}")
-          payload = b"PHYINIT" + bytes(values) + b"PHYINIT"
-          if len(payload) != 142:
+          if len(values) > 128:
+              raise SystemExit(f"PHY source has too many bytes: {len(values)}")
+          # C zero-initializes the unused tail of params[128].
+          values.extend([0] * (128 - len(values)))
+          # Match Espressif's char[] magic strings, including C NUL terminators.
+          payload = b"PHYINIT\\x00" + bytes(values) + b"PHYINIT\\x00"
+          if len(payload) != 144:
               raise SystemExit(f"Unexpected PHY image length: {len(payload)}")
           Path("flash-bundle/phy_init_data.bin").write_bytes(payload)
           print(f"Created official ESP32 PHY init image: {len(payload)} bytes")
