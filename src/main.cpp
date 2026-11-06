@@ -67,7 +67,7 @@ static void showStatus() {
   Serial.println();
   Serial.println("----- ESP32 NETWORK STATUS -----");
   Serial.print("AP: ");
-  Serial.println(WiFi.softAPgetStationNum() >= 0 ? "enabled" : "unknown");
+  Serial.println((WiFi.getMode() & WIFI_AP) ? "enabled" : "disabled");
   Serial.print("AP SSID: ");
   Serial.println(AP_SSID);
   Serial.print("AP IP: ");
